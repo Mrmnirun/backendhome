@@ -1,3 +1,4 @@
+from rms_back_end.local_settings import SECRET_KEY
 import certifi
 from pathlib import Path
 import os
@@ -9,9 +10,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/3.2/howto/deployment/checklist/
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# DEBUG = True
 
-ALLOWED_HOSTS = ['192.168.122.1', '192.168.8.101']
+
+
+ALLOWED_HOSTS = ['*']
 
 # Application definition
 
@@ -74,7 +77,9 @@ WSGI_APPLICATION = 'rms_back_end.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/3.2/ref/settings/#databases
-
+# SECRET_KEY = os.getenv('SECRET_KEY')
+# DEBUG = os.getenv('DEBUG')
+DEBUG = True
 # Secret key and database connection
 
 # from .local_settings import *
