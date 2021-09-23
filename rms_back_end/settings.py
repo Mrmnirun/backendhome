@@ -1,4 +1,4 @@
-from rms_back_end.local_settings import SECRET_KEY
+# from rms_back_end.local_settings import SECRET_KEY
 import certifi
 from pathlib import Path
 import os
