@@ -19,6 +19,7 @@ class MenuItem(models.Model):
     restaurant = models.ForeignKey(Restaurant, on_delete=models.DO_NOTHING, null=True, blank=True)
     availability = models.BooleanField(default=True)
     description = models.TextField(blank=True)
+    price = models.DecimalField(max_digits=7, decimal_places=2, default=0)
     type = models.CharField(max_length=10, choices=menu_types, default=MAIN)
     photo_main = models.ImageField(upload_to='photos/menu_items/main')
     photo_1 = models.ImageField(upload_to='photos/menu_items/other', blank=True)

@@ -7,7 +7,7 @@ from datetime import datetime, date
 from rest_framework import serializers
 from django.db.models import Sum
 from middleware.user_group_validation import is_customer, is_staff
-from middleware.meal_times_enum import meal_times
+from middleware.enums.meal_times_enum import meal_times
 
 
 # Table Reservation ViewSet
