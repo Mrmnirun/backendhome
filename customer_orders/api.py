@@ -1,14 +1,13 @@
 from .models import CustomerOrder
-from restaurants.models import Restaurant
 from django.contrib.auth.models import User
+from datetime import datetime
 from rest_framework import generics, permissions
 from rest_framework.response import Response
 from .serializers import CustomerOrderSerializer
-from datetime import datetime, date
 from rest_framework import serializers
-from django.db.models import Sum
 from middleware.user_group_validation import is_customer, is_staff
-from middleware.enums.meal_times_enum import meal_times
+from middleware.enums.order_status_enum import order_statuses
+from middleware.current_meal_times import current_times
 import json
 
 
@@ -24,13 +23,7 @@ class CustomerOrderViewSet(generics.GenericAPIView):
             raise serializers.ValidationError("Access Denied: You are not a customer")
 
         orders_objs = CustomerOrder.objects.filter(customer=request.user.id)
-        orders = []
-
-        for obj in orders_objs:
-            order = obj.__dict__
-            order.pop('_state')
-            order['total_price'] = float(str(order['total_price']))
-            orders.append(order)
+        orders = get_order_list(orders_objs)
 
         return Response({"orders": orders})
 
@@ -55,96 +48,122 @@ class CustomerOrderViewSet(generics.GenericAPIView):
         })
 
 
-# View Set to get the available reservations for today
-# class GetTodayTableReservationsViewSet(generics.GenericAPIView):
-#     permission_classes = [
-#         permissions.IsAuthenticated
-#     ]
-#     serializer_class = TableReservationSerializer
-#
-#     def get(self, request):
-#         if not is_staff(request.user, 3):
-#             raise serializers.ValidationError("Access Denied: You are not a waiter")
-#
-#         today = datetime.now().date()
-#         time_now = datetime.now().time()
-#
-#         breakfast_begin = time_now.replace(hour=6, minute=0, second=0, microsecond=0)
-#         breakfast_end = time_now.replace(hour=10, minute=30, second=0, microsecond=0)
-#         lunch_begin = time_now.replace(hour=12, minute=0, second=0, microsecond=0)
-#         lunch_end = time_now.replace(hour=15, minute=30, second=0, microsecond=0)
-#         dinner_begin = time_now.replace(hour=19, minute=30, second=0, microsecond=0)
-#         dinner_end = time_now.replace(hour=22, minute=30, second=0, microsecond=0)
-#
-#         if breakfast_begin <= time_now <= breakfast_end:
-#             table_reservations_objs = TableReservation.objects.filter(reserved_date=today, meal_time=meal_times[0][0])
-#         elif lunch_begin <= time_now <= lunch_end:
-#             table_reservations_objs = TableReservation.objects.filter(reserved_date=today, meal_time=meal_times[1][0])
-#         elif dinner_begin <= time_now <= dinner_end:
-#             table_reservations_objs = TableReservation.objects.filter(reserved_date=today, meal_time=meal_times[2][0])
-#         else:
-#             raise serializers.ValidationError("No Meal Provided at this Time.")
-#         table_reservations = []
-#
-#         for obj in table_reservations_objs:
-#             reservation = obj.__dict__
-#             reservation.pop('_state')
-#             table_reservations.append(reservation)
-#
-#         return Response({"table_reservations": table_reservations})
-#
-#
-# # View Set to get update customer arrival
-# class TableReservationArrivalViewSet(generics.GenericAPIView):
-#     permission_classes = [
-#         permissions.IsAuthenticated
-#     ]
-#     serializer_class = TableReservationSerializer
-#
-#     def post(self, request, *args, **kwargs):
-#         if not is_staff(request.user, 3):
-#             raise serializers.ValidationError("Access Denied: You are not a waiter")
-#
-#         data = request.data
-#         reservation_id = data['reservation_id']
-#
-#         try:
-#             reservation = TableReservation.objects.get(id=reservation_id, customer=request.user.id)
-#         except TableReservation.DoesNotExist:
-#             raise serializers.ValidationError("Invalid Access")
-#
-#         if datetime.now().date() == reservation.reserved_date:
-#             reservation.customer_arrival = True
-#             reservation.save()
-#         else:
-#             raise serializers.ValidationError("Today is not the Reserved Date.")
-#
-#         return Response({
-#             "room_reservation": TableReservationSerializer(reservation, context=self.get_serializer_context()).data
-#         })
-#
-#
-# def is_fully_booked(restaurant, reserved_date, meal_time, num_of_people):
-#     try:
-#         restaurant_max_people = Restaurant.objects.filter(id=restaurant)[0].max_number_of_people_for_reservation
-#     except IndexError:
-#         raise serializers.ValidationError('Invalid Restaurant')
-#
-#     prev_reservations = TableReservation.objects.filter(restaurant=restaurant, reserved_date=reserved_date, meal_time=meal_time).aggregate(Sum('num_of_people'))['num_of_people__sum']
-#
-#     if prev_reservations and restaurant_max_people >= prev_reservations + num_of_people:
-#         return False
-#     elif restaurant_max_people >= num_of_people:
-#         return False
-#     return True
-#
-#
-# def is_meal_time_served_by_restaurant(restaurant, meal_time):
-#     if meal_time == 'breakfast':
-#         return Restaurant.objects.filter(id=restaurant)[0].breakfast
-#     elif meal_time == 'lunch':
-#         return Restaurant.objects.filter(id=restaurant)[0].lunch
-#     elif meal_time == 'dinner':
-#         return Restaurant.objects.filter(id=restaurant)[0].dinner
-#     else:
-#         raise serializers.ValidationError("Invalid Meal Time")
+# View Set to get the available orders for today
+class GetCustomerOrdersViewSet(generics.GenericAPIView):
+    permission_classes = [
+        permissions.IsAuthenticated
+    ]
+    serializer_class = CustomerOrderSerializer
+
+    def get(self, request):
+        if not (is_staff(request.user, 3) or is_staff(request.user, 1)):
+            raise serializers.ValidationError("Access Denied: You are not a waiter or a chef")
+
+        today = datetime.now()
+        time_now = today.time()
+        breakfast_begin, breakfast_end, lunch_begin, lunch_end, dinner_begin, dinner_end = current_times
+
+        if breakfast_begin <= time_now <= breakfast_end:
+            order_objs = CustomerOrder.objects.filter(date_created__gt=today.replace(hour=6, minute=0, second=0),
+                                                      date_created__lt=today.replace(hour=10, minute=30, second=0))
+        elif lunch_begin <= time_now <= lunch_end:
+            order_objs = CustomerOrder.objects.filter(date_created__gt=today.replace(hour=12, minute=0, second=0),
+                                                      date_created__lt=today.replace(hour=15, minute=30, second=0))
+        elif dinner_begin <= time_now <= dinner_end:
+            order_objs = CustomerOrder.objects.filter(date_created__gt=today.replace(hour=19, minute=30, second=0),
+                                                      date_created__lt=today.replace(hour=22, minute=30, second=0))
+        else:
+            raise serializers.ValidationError("No Meal Provided at this Time.")
+
+        orders = get_order_list(order_objs)
+
+        return Response({"orders": orders})
+
+
+# View Set to get update customer order status
+class CustomerOrderUpdateViewSet(generics.GenericAPIView):
+    permission_classes = [
+        permissions.IsAuthenticated
+    ]
+    serializer_class = CustomerOrderSerializer
+
+    def post(self, request, *args, **kwargs):
+        data = request.data
+        order_id = data['order_id']
+        try:
+            order = CustomerOrder.objects.get(id=order_id)
+            order_status = order.status
+        except CustomerOrder.DoesNotExist:
+            raise serializers.ValidationError("Invalid Access")
+
+        if is_staff(request.user, 3):
+            if order_status == order_statuses[3][0]:
+                order.status = order_statuses[4][0]
+            elif order_status == order_statuses[4][0]:
+                order.status = order_statuses[5][0]
+            else:
+                raise serializers.ValidationError("Waiters cannot update order status at " + order_status + " state.")
+        elif is_staff(request.user, 1):
+            if order_status == order_statuses[0][0]:
+                order.status = order_statuses[1][0]
+            elif order_status == order_statuses[1][0]:
+                order.status = order_statuses[2][0]
+            elif order_status == order_statuses[2][0]:
+                order.status = order_statuses[3][0]
+            else:
+                raise serializers.ValidationError("Chefs cannot update order status at " + order_status + " state.")
+        else:
+            raise serializers.ValidationError("Access Denied: You are not a waiter or a chef")
+
+        order.total_price = float(str(order.total_price))
+        order.save()
+
+        return Response({
+            "order": CustomerOrderSerializer(order, context=self.get_serializer_context()).data
+        })
+
+
+# View Set to update payment success
+class CustomerOrderPaymentSuccessViewSet(generics.GenericAPIView):
+    permission_classes = [
+        permissions.IsAuthenticated
+    ]
+    serializer_class = CustomerOrderSerializer
+
+    def post(self, request, *args, **kwargs):
+        data = request.data
+        order_id = data['order_id']
+
+        try:
+            order = CustomerOrder.objects.get(id=order_id)
+            order_status = order.status
+        except CustomerOrder.DoesNotExist:
+            raise serializers.ValidationError("Invalid Access")
+
+        if is_staff(request.user, 4):
+            if order_status == order_statuses[5][0]:
+                order.status = order_statuses[6][0]
+            else:
+                raise serializers.ValidationError(
+                    "Virtual Waiters cannot update order status at " + order_status + " state.")
+        else:
+            raise serializers.ValidationError("Access Denied: You are not a virtual waiter.")
+
+        order.total_price = float(str(order.total_price))
+        order.save()
+
+        return Response({
+            "order": CustomerOrderSerializer(order, context=self.get_serializer_context()).data
+        })
+
+
+def get_order_list(obj_list):
+    orders = []
+
+    for obj in obj_list:
+        order = obj.__dict__
+        order.pop('_state')
+        order['total_price'] = float(str(order['total_price']))
+        orders.append(order)
+
+    return orders

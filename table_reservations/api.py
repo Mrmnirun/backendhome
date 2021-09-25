@@ -8,6 +8,7 @@ from rest_framework import serializers
 from django.db.models import Sum
 from middleware.user_group_validation import is_customer, is_staff
 from middleware.enums.meal_times_enum import meal_times
+from middleware.current_meal_times import current_times
 
 
 # Table Reservation ViewSet
@@ -68,12 +69,7 @@ class GetTodayTableReservationsViewSet(generics.GenericAPIView):
         today = datetime.now().date()
         time_now = datetime.now().time()
 
-        breakfast_begin = time_now.replace(hour=6, minute=0, second=0, microsecond=0)
-        breakfast_end = time_now.replace(hour=10, minute=30, second=0, microsecond=0)
-        lunch_begin = time_now.replace(hour=12, minute=0, second=0, microsecond=0)
-        lunch_end = time_now.replace(hour=15, minute=30, second=0, microsecond=0)
-        dinner_begin = time_now.replace(hour=19, minute=30, second=0, microsecond=0)
-        dinner_end = time_now.replace(hour=22, minute=30, second=0, microsecond=0)
+        breakfast_begin, breakfast_end, lunch_begin, lunch_end, dinner_begin, dinner_end = current_times
 
         if breakfast_begin <= time_now <= breakfast_end:
             table_reservations_objs = TableReservation.objects.filter(reserved_date=today, meal_time=meal_times[0][0])
