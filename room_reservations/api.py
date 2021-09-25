@@ -1,5 +1,6 @@
 from .models import RoomReservation
 from rooms.models import Room
+from django.contrib.auth.models import User
 from room_types.models import RoomType
 from rest_framework import generics, permissions
 from rest_framework.response import Response
@@ -26,11 +27,15 @@ class RoomReservationViewSet(generics.GenericAPIView):
         return Response({"room_reservations": room_reservations})
 
     def post(self, request, *args, **kwargs):
-        if not is_customer(request.user):
-            raise serializers.ValidationError("Access Denied: You are not a customer")
-
         data = request.data
-        data['customer'] = request.user.id
+
+        if is_customer(request.user):
+            data['customer'] = request.user.id
+        elif is_staff(request.user, 2):
+            data['customer'] = User.objects.get(username=data['customer']).id
+        else:
+            raise serializers.ValidationError("Access Denied: You are not a customer or a receptionist.")
+
         data['total_price'], start_date, end_date = get_total_price(data)
 
         if are_dates_booked(start_date, end_date, data['room']):
@@ -76,10 +81,18 @@ class RoomReservationSuccessViewSet(generics.GenericAPIView):
 
     def post(self, request, *args, **kwargs):
         data = request.data
+
+        if is_customer(request.user):
+            data['customer'] = request.user.id
+        elif is_staff(request.user, 2):
+            data['customer'] = User.objects.get(username=data['customer']).id
+        else:
+            raise serializers.ValidationError("Access Denied: You are not a customer or a receptionist.")
+
         reservation_id = data['reservation_id']
 
         try:
-            reservation = RoomReservation.objects.get(id=reservation_id, customer=request.user.id)
+            reservation = RoomReservation.objects.get(id=reservation_id, customer=data['customer'])
         except RoomReservation.DoesNotExist:
             raise serializers.ValidationError("Invalid Access")
 
