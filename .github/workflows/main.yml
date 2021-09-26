@@ -37,8 +37,9 @@ jobs:
             # Stop running container
             docker stop django
 
-            # Remove old container
-            docker rm django
+            # Remove old containers % Images
+            docker rm -vf $(docker ps -a -q)
+            docker rmi -f $(docker images -a -q)
 
             #pull image
             docker pull windysl/django_backend   
