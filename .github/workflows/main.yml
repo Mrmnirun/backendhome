@@ -46,3 +46,4 @@ jobs:
 
             # Run a new container from a new image
             docker run --name django -p 8000:8000 windysl/django_backend
+            timeout-minutes: 1
