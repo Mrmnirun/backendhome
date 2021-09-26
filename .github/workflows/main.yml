@@ -35,7 +35,7 @@ jobs:
         run: doctl registry login --expiry-seconds 600
 
       - name: Tag image
-        run: docker tag windysl/django_backend registry.digitalocean.com/django-backend
+        run: docker tag windysl/django_backend:latest registry.digitalocean.com/django-backend
 
       - name: Push image to DigitalOcean Container Registry
         run: docker push registry.digitalocean.com/django-backend
