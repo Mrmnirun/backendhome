@@ -2,11 +2,13 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 
+
 # Customer Serializer
 class CustomerSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ('id', 'username', 'email')
+
 
 # Register Customer Serializer
 class RegisterCustomerSerializer(serializers.ModelSerializer):
@@ -22,6 +24,7 @@ class RegisterCustomerSerializer(serializers.ModelSerializer):
         customer.save()
 
         return customer
+
 
 # Login Customer Serializer
 class LoginCustomerSerializer(serializers.Serializer):

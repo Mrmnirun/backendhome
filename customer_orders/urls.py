@@ -1,9 +1,11 @@
 from django.urls import path, include
-# from .api import TableReservationViewSet, TableReservationArrivalViewSet, GetTodayTableReservationsViewSet
+from .api import CustomerOrderViewSet, CustomerOrderUpdateViewSet, CustomerOrderPaymentSuccessViewSet, GetCustomerOrdersViewSet, AddOrderReviewViewSet
 
 
 urlpatterns = [
-    # path('api/table_reservations', TableReservationViewSet.as_view()),
-    # path('api/table_reservations/arrival', TableReservationArrivalViewSet.as_view()),
-    # path('api/table_reservations/today_reservations', GetTodayTableReservationsViewSet.as_view()),
+    path('api/order', CustomerOrderViewSet.as_view()),
+    path('api/order/update', CustomerOrderUpdateViewSet.as_view()),
+    path('api/order/payment_success', CustomerOrderPaymentSuccessViewSet.as_view()),
+    path('api/order/get_orders', GetCustomerOrdersViewSet.as_view()),
+    path('api/order/add_review', AddOrderReviewViewSet.as_view()),
 ]

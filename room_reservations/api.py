@@ -1,5 +1,6 @@
 from .models import RoomReservation
 from rooms.models import Room
+from django.contrib.auth.models import User
 from room_types.models import RoomType
 from rest_framework import generics, permissions
 from rest_framework.response import Response
@@ -21,22 +22,20 @@ class RoomReservationViewSet(generics.GenericAPIView):
             raise serializers.ValidationError("Access Denied: You are not a customer")
 
         room_reservations_objs = RoomReservation.objects.filter(customer=request.user.id)
-        room_reservations = []
-
-        for obj in room_reservations_objs:
-            reservation = obj.__dict__
-            reservation.pop('_state')
-            reservation['total_price'] = float(str(reservation['total_price']))
-            room_reservations.append(reservation)
+        room_reservations = get_reservation_list(room_reservations_objs)
 
         return Response({"room_reservations": room_reservations})
 
     def post(self, request, *args, **kwargs):
-        if not is_customer(request.user):
-            raise serializers.ValidationError("Access Denied: You are not a customer")
-
         data = request.data
-        data['customer'] = request.user.id
+
+        if is_customer(request.user):
+            data['customer'] = request.user.id
+        elif is_staff(request.user, 2):
+            data['customer'] = User.objects.get(username=data['customer']).id
+        else:
+            raise serializers.ValidationError("Access Denied: You are not a customer or a receptionist.")
+
         data['total_price'], start_date, end_date = get_total_price(data)
 
         if are_dates_booked(start_date, end_date, data['room']):
@@ -51,6 +50,28 @@ class RoomReservationViewSet(generics.GenericAPIView):
         })
 
 
+# View Set to get the available reservations (check-in and check-out) for today
+class GetTodayRoomReservationsViewSet(generics.GenericAPIView):
+    permission_classes = [
+        permissions.IsAuthenticated
+    ]
+    serializer_class = RoomReservationSerializer
+
+    def get(self, request):
+        if not is_staff(request.user, 2):
+            raise serializers.ValidationError("Access Denied: You are not a receptionist")
+
+        today = datetime.now().date()
+
+        check_in_reservation_objs = RoomReservation.objects.filter(start_date=today)
+        check_out_reservation_objs = RoomReservation.objects.filter(end_date=today)
+
+        check_in_reservations = get_reservation_list(check_in_reservation_objs)
+        check_out_reservations = get_reservation_list(check_out_reservation_objs)
+
+        return Response({"check_in_reservations": check_in_reservations, "check_out_reservations": check_out_reservations})
+
+
 # View Set to update payment success
 class RoomReservationSuccessViewSet(generics.GenericAPIView):
     permission_classes = [
@@ -60,15 +81,23 @@ class RoomReservationSuccessViewSet(generics.GenericAPIView):
 
     def post(self, request, *args, **kwargs):
         data = request.data
+
+        if is_customer(request.user):
+            data['customer'] = request.user.id
+        elif is_staff(request.user, 2):
+            data['customer'] = User.objects.get(username=data['customer']).id
+        else:
+            raise serializers.ValidationError("Access Denied: You are not a customer or a receptionist.")
+
         reservation_id = data['reservation_id']
 
         try:
-            reservation = RoomReservation.objects.get(id=reservation_id, customer=request.user.id)
+            reservation = RoomReservation.objects.get(id=reservation_id, customer=data['customer'])
         except RoomReservation.DoesNotExist:
             raise serializers.ValidationError("Invalid Access")
 
         reservation.payment_status = True
-        reservation.total_price = str(reservation.total_price)
+        reservation.total_price = float(str(reservation.total_price))
         reservation.save()
 
         return Response({
@@ -164,14 +193,11 @@ def get_total_price(data):
     room_price = RoomType.objects.filter(id=room_type)[0].price
 
     s_y, s_m, s_d = list(map(int, data['start_date'][:10].strip().split('-')))
-    s_h, s_mi, s_s = list(map(int, data['start_date'][11:].strip().split(':')))
     e_y, e_m, e_d = list(map(int, data['end_date'][:10].strip().split('-')))
-    e_h, e_mi, e_s = list(map(int, data['end_date'][11:].strip().split(':')))
 
     num_of_days = date(e_y, e_m, e_d) - date(s_y, s_m, s_d)
 
-    return num_of_days.days * float(str(room_price)), datetime(s_y, s_m, s_d, s_h, s_mi, s_s), datetime(e_y, e_m, e_d,
-                                                                                                        e_h, e_mi, e_s)
+    return num_of_days.days * float(str(room_price)), date(s_y, s_m, s_d), date(e_y, e_m, e_d)
 
 
 def are_dates_booked(start_date, end_date, room_id):
@@ -183,3 +209,15 @@ def are_dates_booked(start_date, end_date, room_id):
         if len(prev_reservations_from_end) == 0:
             return False
     return True
+
+
+def get_reservation_list(reservation_objs):
+    room_reservations = []
+
+    for obj in reservation_objs:
+        reservation = obj.__dict__
+        reservation.pop('_state')
+        reservation['total_price'] = float(str(reservation['total_price']))
+        room_reservations.append(reservation)
+
+    return room_reservations

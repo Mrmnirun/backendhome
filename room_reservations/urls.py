@@ -1,6 +1,5 @@
 from django.urls import path, include
-from .api import RoomReservationViewSet, RoomReservationSuccessViewSet, RoomCheckInViewSet, RoomCheckOutViewSet, AddRoomReviewViewSet
-from knox import views as knox_views
+from .api import RoomReservationViewSet, RoomReservationSuccessViewSet, RoomCheckInViewSet, RoomCheckOutViewSet, AddRoomReviewViewSet, GetTodayRoomReservationsViewSet
 
 urlpatterns = [
     path('api/room_reservations', RoomReservationViewSet.as_view()),
@@ -8,4 +7,5 @@ urlpatterns = [
     path('api/room_reservations/check_in', RoomCheckInViewSet.as_view()),
     path('api/room_reservations/check_out', RoomCheckOutViewSet.as_view()),
     path('api/room_reservations/add_review', AddRoomReviewViewSet.as_view()),
+    path('api/room_reservations/today_reservations', GetTodayRoomReservationsViewSet.as_view()),
 ]
