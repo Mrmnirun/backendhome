@@ -161,6 +161,38 @@ class CustomerOrderPaymentSuccessViewSet(generics.GenericAPIView):
         })
 
 
+# View Set to add a review
+class AddOrderReviewViewSet(generics.GenericAPIView):
+    permission_classes = [
+        permissions.IsAuthenticated
+    ]
+    serializer_class = CustomerOrderSerializer
+
+    def post(self, request, *args, **kwargs):
+        if not is_staff(request.user, 4):
+            raise serializers.ValidationError("Access Denied: You are not a virtual waiter")
+
+        data = request.data
+        data['customer'] = User.objects.filter(username=data['customer'])[0].id
+
+        order_id = data['order_id']
+
+        print(data['customer'])
+
+        try:
+            order = CustomerOrder.objects.get(id=order_id, customer=data['customer'])
+        except CustomerOrder.DoesNotExist:
+            raise serializers.ValidationError("Invalid Access")
+
+        order.customer_review = data['customer_review']
+        order.total_price = float(str(order.total_price))
+        order.save()
+
+        return Response({
+            "order": CustomerOrderSerializer(order, context=self.get_serializer_context()).data
+        })
+
+
 def get_order_list(obj_list):
     orders = []
 

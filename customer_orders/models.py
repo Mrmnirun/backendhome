@@ -14,6 +14,7 @@ class CustomerOrder(models.Model):
     total_price = models.DecimalField(max_digits=7, decimal_places=2, default=0)
     menu_items = models.CharField(default="{}", max_length=255)
     special_offers = models.CharField(default="{}", max_length=255)
+    customer_review = models.TextField(blank=True)
     date_created = models.DateTimeField(blank=True, default=datetime.now)
 
     def __str__(self):
