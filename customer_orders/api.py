@@ -168,6 +168,8 @@ def get_order_list(obj_list):
         order = obj.__dict__
         order.pop('_state')
         order['total_price'] = float(str(order['total_price']))
+        order['menu_items'] = json.loads(order['menu_items'])
+        order['special_offers'] = json.loads(order['special_offers'])
         orders.append(order)
 
     return orders
